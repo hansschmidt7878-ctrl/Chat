@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Blackjack (5 Decks)</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: darkgreen;
+    color: white;
+}
+
+button {
+    padding: 10px 20px;
+    margin: 10px;
+    font-size: 18px;
+}
+
+.cards {
+    margin: 20px;
+    font-size: 24px;
+}
+</style>
+</head>
+<body>
+
+<h1>Blackjack (5 Decks)</h1>
+
+<h2>Dealer</h2>
+<div id="dealerCards" class="cards"></div>
+<div id="dealerScore"></div>
+
+<h2>Spieler</h2>
+<div id="playerCards" class="cards"></div>
+<div id="playerScore"></div>
+
+<button onclick="hit()">Karte</button>
+<button onclick="stand()">Stand</button>
+<button onclick="newGame()">Neues Spiel</button>
+
+<h2 id="result"></h2>
+
+<script>
+let deck = [];
+let player = [];
+let dealer = [];
+
+function createDeck() {
+    const suits = ["♠","♥","♦","♣"];
+    const values = [
+        {name:"A", value:11},
+        {name:"2", value:2},
+        {name:"3", value:3},
+        {name:"4", value:4},
+        {name:"5", value:5},
+        {name:"6", value:6},
+        {name:"7", value:7},
+        {name:"8", value:8},
+        {name:"9", value:9},
+        {name:"10", value:10},
+        {name:"J", value:10},
+        {name:"Q", value:10},
+        {name:"K", value:10}
+    ];
+
+    deck = [];
+
+    for(let d=0; d<5; d++) {
+        for(let suit of suits) {
+            for(let val of values) {
+                deck.push({
+                    card: val.name + suit,
+                    value: val.value
+                });
+            }
+        }
+    }
+
+    shuffle(deck);
+}
+
+function shuffle(array) {
+    for(let i=array.length-1; i>0; i--) {
+        let j = Math.floor(Math.random()*(i+1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
+function drawCard() {
+    if(deck.length === 0) createDeck();
+    return deck.pop();
+}
+
+function getScore(hand) {
+    let score = 0;
+    let aces = 0;
+
+    for(let card of hand) {
+        score += card.value;
+        if(card.value === 11) aces++;
+    }
+
+    while(score > 21 && aces > 0) {
+        score -= 10;
+        aces--;
+    }
+
+    return score;
+}
+
+function updateDisplay() {
+    document.getElementById("playerCards").innerText =
+        player.map(c => c.card).join(" ");
+
+    document.getElementById("dealerCards").innerText =
+        dealer.map(c => c.card).join(" ");
+
+    document.getElementById("playerScore").innerText =
+        "Punkte: " + getScore(player);
+
+    document.getElementById("dealerScore").innerText =
+        "Punkte: " + getScore(dealer);
+}
+
+function hit() {
+    player.push(drawCard());
+    updateDisplay();
+
+    if(getScore(player) > 21) {
+        document.getElementById("result").innerText =
+            "Bust! Dealer gewinnt.";
+    }
+}
+
+function stand() {
+    while(getScore(dealer) < 17) {
+        dealer.push(drawCard());
+    }
+
+    updateDisplay();
+
+    let p = getScore(player);
+    let d = getScore(dealer);
+
+    if(d > 21) {
+        result.innerText = "Dealer Bust! Du gewinnst.";
+    } else if(p > d) {
+        result.innerText = "Du gewinnst!";
+    } else if(d > p) {
+        result.innerText = "Dealer gewinnt.";
+    } else {
+        result.innerText = "Push (Unentschieden).";
+    }
+}
+
+function newGame() {
+    if(deck.length < 50) createDeck();
+
+    player = [];
+    dealer = [];
+
+    player.push(drawCard());
+    player.push(drawCard());
+
+    dealer.push(drawCard());
+    dealer.push(drawCard());
+
+    result.innerText = "";
+
+    updateDisplay();
+}
+
+createDeck();
+newGame();
+</script>
+
+</body>
+</html>
