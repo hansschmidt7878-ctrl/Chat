@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Bet Tracker Pro+ Multi</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #0f0f0f;
+    color: white;
+    margin: 0;
+}
+
+.nav {
+    display: flex;
+    background: #1a1a1a;
+}
+
+.nav button {
+    flex: 1;
+    padding: 15px;
+    background: #1a1a1a;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.nav button.active {
+    background: #333;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+    padding: 20px;
+}
+
+.card {
+    background: #1c1c1c;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 10px;
+}
+
+input, select, button {
+    padding: 8px;
+    margin: 5px;
+}
+
+.win { color: #4caf50; }
+.loss { color: #f44336; }
+
+.small { font-size: 12px; opacity: 0.7; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.box { background:#222; padding:10px; border-radius:10px; margin:5px; }
+</style>
+</head>
+
+<body>
+
+<div class="nav">
+    <button onclick="showTab('bets')" id="tabBets" class="active">Wetten</button>
+    <button onclick="showTab('cash')" id="tabCash">Ein/Auszahlung</button>
+</div>
+
+<div class="container">
+
+<!-- TAB 1 -->
+<div id="betsTab">
+
+<h2>📊 Wetten</h2>
+
+<div class="card">
+    <input id="newBook" placeholder="Wettanbieter hinzufügen">
+    <button onclick="addBook()">+ Anbieter</button>
+</div>
+
+<div class="card">
+    <select id="bookSelect"></select>
+    <input id="stake" type="number" placeholder="Einsatz">
+    <input id="odds" type="number" step="0.01" placeholder="Quote">
+    <button onclick="addBet()">➕ Wette</button>
+</div>
+
+<div id="bookStats"></div>
+
+<h3>Offene Wetten</h3>
+<div id="openBets"></div>
+
+<h3>Historie</h3>
+<div id="history"></div>
+
+</div>
+
+<!-- TAB 2 -->
+<div id="cashTab" style="display:none">
+
+<h2>💰 Ein / Auszahlung</h2>
+
+<div class="card">
+    <select id="cashBook"></select>
+    <input id="amount" type="number" placeholder="Betrag">
+    <button onclick="deposit()">➕ Einzahlung</button>
+    <button onclick="withdraw()">➖ Auszahlung</button>
+</div>
+
+<div id="cashHistory"></div>
+
+</div>
+
+</div>
+
+<script>
+
+let data = JSON.parse(localStorage.getItem("betpro") || JSON.stringify({
+    books: {},
+    bets: [],
+    cash: []
+}));
+
+function save(){
+    localStorage.setItem("betpro", JSON.stringify(data));
+}
+
+function showTab(tab){
+
+    document.getElementById("betsTab").style.display = tab === "bets" ? "block" : "none";
+    document.getElementById("cashTab").style.display = tab === "cash" ? "block" : "none";
+
+    document.getElementById("tabBets").classList.toggle("active", tab==="bets");
+    document.getElementById("tabCash").classList.toggle("active", tab==="cash");
+}
+
+function addBook(){
+
+    let name = document.getElementById("newBook").value;
+    if(!name) return;
+
+    if(!data.books[name]){
+        data.books[name] = { balance: 0 };
+    }
+
+    save();
+    renderBooks();
+}
+
+function renderBooks(){
+
+    let sel1 = document.getElementById("bookSelect");
+    let sel2 = document.getElementById("cashBook");
+
+    sel1.innerHTML = "";
+    sel2.innerHTML = "";
+
+    Object.keys(data.books).forEach(b => {
+        sel1.innerHTML += `<option>${b}</option>`;
+        sel2.innerHTML += `<option>${b}</option>`;
+    });
+}
+
+function addBet(){
+
+    let book = document.getElementById("bookSelect").value;
+    let stake = parseFloat(document.getElementById("stake").value);
+    let odds = parseFloat(document.getElementById("odds").value);
+
+    if(!book || !stake || !odds) return;
+
+    let id = Date.now();
+
+    data.bets.push({
+        id,
+        book,
+        stake,
+        odds,
+        status: "open",
+        date: new Date().toISOString()
+    });
+
+    save();
+    render();
+}
+
+function resolveBet(id, win){
+
+    let b = data.bets.find(x => x.id === id);
+
+    let result = b.stake * b.odds - b.stake;
+
+    if(!win) result = -b.stake;
+
+    b.status = win ? "win" : "loss";
+    b.result = result;
+    b.resolved = new Date().toISOString();
+
+    data.books[b.book].balance += result;
+
+    save();
+    render();
+}
+
+function deleteBet(id){
+
+    data.bets = data.bets.filter(b => b.id !== id);
+    save();
+    render();
+}
+
+function deposit(){
+
+    let book = document.getElementById("cashBook").value;
+    let amount = parseFloat(document.getElementById("amount").value);
+
+    data.books[book].balance += amount;
+
+    data.cash.push({
+        book,
+        amount,
+        type: "in",
+        date: new Date().toISOString()
+    });
+
+    save();
+    render();
+}
+
+function withdraw(){
+
+    let book = document.getElementById("cashBook").value;
+    let amount = parseFloat(document.getElementById("amount").value);
+
+    data.books[book].balance -= amount;
+
+    data.cash.push({
+        book,
+        amount,
+        type: "out",
+        date: new Date().toISOString()
+    });
+
+    save();
+    render();
+}
+
+function render(){
+
+    renderBooks();
+
+    let open = document.getElementById("openBets");
+    let history = document.getElementById("history");
+    let cash = document.getElementById("cashHistory");
+    let stats = document.getElementById("bookStats");
+
+    open.innerHTML = "";
+    history.innerHTML = "";
+    cash.innerHTML = "";
+    stats.innerHTML = "";
+
+    Object.keys(data.books).forEach(b => {
+
+        let bal = data.books[b].balance;
+
+        stats.innerHTML += `<div class="box">${b}: ${bal.toFixed(2)}€</div>`;
+    });
+
+    data.bets.forEach(b => {
+
+        let div = document.createElement("div");
+        div.className = "card";
+
+        if(b.status === "open"){
+            div.innerHTML = `
+                <b>${b.book}</b><br>
+                Einsatz: ${b.stake} | Quote: ${b.odds}
+                <br>
+                <button onclick="resolveBet(${b.id}, true)">Win</button>
+                <button onclick="resolveBet(${b.id}, false)">Loss</button>
+                <button onclick="deleteBet(${b.id})">Delete</button>
+            `;
+            open.appendChild(div);
+        } else {
+            div.className += b.status === "win" ? " win" : " loss";
+            div.innerHTML = `
+                ${b.book} | ${b.status.toUpperCase()} | ${b.result.toFixed(2)}€
+                <button onclick="deleteBet(${b.id})">Delete</button>
+            `;
+            history.prepend(div);
+        }
+    });
+
+    data.cash.forEach(c => {
+
+        let div = document.createElement("div");
+        div.className = "card";
+
+        div.innerHTML = `
+            ${c.book} | ${c.type === "in" ? "Einzahlung" : "Auszahlung"} | ${c.amount}€
+        `;
+
+        cash.prepend(div);
+    });
+}
+
+render();
+
+</script>
+
+</body>
+</html>
