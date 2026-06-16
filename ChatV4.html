@@ -1,0 +1,133 @@
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+import os
+
+DATA_FILE = "transactions.csv"
+
+# ---------------------------
+# Daten laden / speichern
+# ---------------------------
+def load_data():
+    if os.path.exists(DATA_FILE):
+        return pd.read_csv(DATA_FILE, parse_dates=["date"])
+    return pd.DataFrame(columns=["date", "type", "category", "amount"])
+
+def save_data(df):
+    df.to_csv(DATA_FILE, index=False)
+
+# ---------------------------
+# Neue Transaktion
+# ---------------------------
+def add_transaction(date, t_type, category, amount):
+    df = load_data()
+    new = pd.DataFrame([[date, t_type, category, amount]],
+                       columns=df.columns)
+    df = pd.concat([df, new], ignore_index=True)
+    save_data(df)
+
+# ---------------------------
+# Filter nach Zeitraum
+# ---------------------------
+def filter_data(df, days=None):
+    if days is None:
+        return df
+    cutoff = datetime.now() - timedelta(days=days)
+    return df[df["date"] >= cutoff]
+
+# ---------------------------
+# Statistik
+# ---------------------------
+def show_stats(df):
+    income = df[df["type"] == "income"]["amount"].sum()
+    expense = df[df["type"] == "expense"]["amount"].sum()
+    balance = income - expense
+
+    st.metric("Einnahmen", f"{income:.2f} €")
+    st.metric("Ausgaben", f"{expense:.2f} €")
+    st.metric("Saldo", f"{balance:.2f} €")
+
+# ---------------------------
+# Diagramm
+# ---------------------------
+def plot_data(df):
+    if df.empty:
+        st.info("Keine Daten vorhanden.")
+        return
+
+    grouped = df.groupby("type")["amount"].sum()
+
+    fig, ax = plt.subplots()
+    grouped.plot(kind="bar", ax=ax)
+    ax.set_title("Einnahmen vs Ausgaben")
+    ax.set_ylabel("Euro")
+    st.pyplot(fig)
+
+# ---------------------------
+# UI
+# ---------------------------
+st.title("💰 Einnahmen & Ausgaben Tool")
+
+menu = st.sidebar.selectbox(
+    "Menü",
+    ["Eintrag hinzufügen", "Übersicht", "Statistiken"]
+)
+
+df = load_data()
+
+# ---------------------------
+# Eintrag hinzufügen
+# ---------------------------
+if menu == "Eintrag hinzufügen":
+    st.subheader("Neue Transaktion")
+
+    date = st.date_input("Datum", datetime.now())
+    t_type = st.selectbox("Typ", ["income", "expense"])
+    category = st.text_input("Kategorie")
+    amount = st.number_input("Betrag", min_value=0.0, step=0.5)
+
+    if st.button("Speichern"):
+        add_transaction(date, t_type, category, amount)
+        st.success("Gespeichert!")
+
+# ---------------------------
+# Übersicht
+# ---------------------------
+elif menu == "Übersicht":
+    st.subheader("Alle Daten")
+    st.dataframe(df.sort_values("date", ascending=False))
+
+    st.subheader("Gesamt")
+    show_stats(df)
+
+    st.subheader("Diagramm")
+    plot_data(df)
+
+# ---------------------------
+# Statistiken nach Zeiträumen
+# ---------------------------
+elif menu == "Statistiken":
+    st.subheader("Zeiträume")
+
+    option = st.selectbox(
+        "Zeitraum",
+        ["Heute", "7 Tage", "30 Tage", "Alle"]
+    )
+
+    if option == "Heute":
+        filtered = filter_data(df, 1)
+    elif option == "7 Tage":
+        filtered = filter_data(df, 7)
+    elif option == "30 Tage":
+        filtered = filter_data(df, 30)
+    else:
+        filtered = df
+
+    show_stats(filtered)
+    plot_data(filtered)
+
+    st.subheader("Nach Kategorie")
+    if not filtered.empty:
+        cat = filtered.groupby("category")["amount"].sum()
+        st.bar_chart(cat)
