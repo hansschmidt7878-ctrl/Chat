@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Blackjack 5 Decks</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #0b5d1e;
+    color: white;
+    text-align: center;
+}
+
+input, button {
+    padding: 8px;
+    margin: 5px;
+}
+
+.cardBox {
+    margin: 10px;
+    font-size: 22px;
+}
+.panel {
+    margin: 20px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Blackjack (5 Decks)</h1>
+
+<div id="setup">
+    <h3>Spiel starten</h3>
+    Anzahl Spieler:
+    <input id="playerCount" type="number" min="1" max="5" value="1">
+
+    <button onclick="initPlayers()">Start</button>
+</div>
+
+<div id="game" style="display:none">
+
+    <h2>Dealer</h2>
+    <div id="dealerScore">Punkte: ?</div>
+
+    <h2>Spieler</h2>
+    <div id="playerInfo"></div>
+
+    <button onclick="hit()">Karte</button>
+    <button onclick="stand()">Stand</button>
+    <button onclick="nextPlayer()">Nächster Spieler</button>
+
+    <h2 id="result"></h2>
+</div>
+
+<script>
+
+let deck = [];
+let players = [];
+let dealer = [];
+let currentPlayer = 0;
+let dealerHidden = true;
+
+function createDeck() {
+    const suits = ["♠","♥","♦","♣"];
+    const values = [
+        {v:1,n:"A"}, {v:2,n:"2"}, {v:3,n:"3"}, {v:4,n:"4"},
+        {v:5,n:"5"}, {v:6,n:"6"}, {v:7,n:"7"}, {v:8,n:"8"},
+        {v:9,n:"9"}, {v:10,n:"10"},
+        {v:10,n:"J"}, {v:10,n:"Q"}, {v:10,n:"K"}
+    ];
+
+    deck = [];
+
+    for(let d=0; d<5; d++){
+        for(let s of suits){
+            for(let val of values){
+                deck.push(val.v);
+            }
+        }
+    }
+
+    shuffle(deck);
+}
+
+function shuffle(a){
+    for(let i=a.length-1;i>0;i--){
+        let j=Math.floor(Math.random()*(i+1));
+        [a[i],a[j]]=[a[j],a[i]];
+    }
+}
+
+function draw(){
+    return deck.pop();
+}
+
+function score(hand){
+    let s=0, aces=0;
+    for(let c of hand){
+        s+=c;
+        if(c===1) aces++;
+    }
+    while(s>21 && aces){
+        s-=10;
+        aces--;
+    }
+    return s;
+}
+
+function initPlayers(){
+    let count = parseInt(document.getElementById("playerCount").value);
+
+    players = [];
+
+    for(let i=0;i<count;i++){
+        let money = prompt("Spieler " + (i+1) + " Budget eingeben:");
+        players.push({
+            name: "Spieler " + (i+1),
+            balance: parseInt(money),
+            bet: 10,
+            hand: []
+        });
+    }
+
+    startGame();
+}
+
+function startGame(){
+    document.getElementById("setup").style.display="none";
+    document.getElementById("game").style.display="block";
+
+    createDeck();
+
+    dealer = [draw(), draw()];
+    dealerHidden = true;
+
+    players.forEach(p=>{
+        p.hand = [draw(), draw()];
+    });
+
+    currentPlayer = 0;
+    update();
+}
+
+function update(){
+
+    let p = players[currentPlayer];
+
+    document.getElementById("dealerScore").innerText =
+        "Punkte: " + (dealerHidden ? "?" : score(dealer));
+
+    let html = "";
+
+    players.forEach((p,i)=>{
+        html += `
+        <div class="panel">
+            <b>${p.name}</b><br>
+            Budget: ${p.balance}<br>
+            Punkte: ${score(p.hand)}<br>
+            ${i===currentPlayer ? "👉 Am Zug" : ""}
+        </div>`;
+    });
+
+    document.getElementById("playerInfo").innerHTML = html;
+}
+
+function hit(){
+    let p = players[currentPlayer];
+    p.hand.push(draw());
+
+    if(score(p.hand) > 21){
+        alert(p.name + " Bust!");
+        nextPlayer();
+    }
+
+    update();
+}
+
+function stand(){
+    nextPlayer();
+}
+
+function nextPlayer(){
+
+    if(currentPlayer < players.length - 1){
+        currentPlayer++;
+    } else {
+        dealerPlay();
+    }
+
+    update();
+}
+
+function dealerPlay(){
+
+    dealerHidden = false;
+
+    while(score(dealer) < 17){
+        dealer.push(draw());
+    }
+
+    let d = score(dealer);
+
+    players.forEach(p=>{
+        let ps = score(p.hand);
+
+        if(ps > 21){
+            p.balance -= p.bet;
+        } else if(d > 21 || ps > d){
+            p.balance += p.bet;
+        } else if(ps < d){
+            p.balance -= p.bet;
+        }
+    });
+
+    document.getElementById("result").innerText =
+        "Runde beendet!";
+    update();
+}
+
+</script>
+
+</body>
+</html>
